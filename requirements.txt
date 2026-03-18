@@ -1,0 +1,8 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+aiofiles>=23.2.0
+pydantic>=2.0.0
+# Optional: libtorrent for native P2P (install separately if needed)
+# libtorrent>=2.0.0
+# WebSocket support is included with uvicorn[standard]
