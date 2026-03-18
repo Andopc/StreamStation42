@@ -27,6 +27,14 @@ async def root():
 async def remote():
     return FileResponse("fs42/fs42_server/static/remote.html")
 
+@fapi.get("/schedule-builder")
+async def schedule_builder():
+    return FileResponse("fs42/fs42_server/static/schedule_builder.html")
+
+@fapi.get("/p2p")
+async def p2p_manager():
+    return FileResponse("fs42/fs42_server/static/p2p.html")
+
 @fapi.get('/favicon.ico', include_in_schema=False)
 async def favicon():
     return FileResponse("fs42/fs42_server/static/favicon.ico")

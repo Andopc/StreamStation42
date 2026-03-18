@@ -50,8 +50,10 @@ async function createMainMenu() {
                 <li class="pure-menu-item"><a href="/" class="pure-menu-link">Home</a></li>
                 <li class="pure-menu-item"><a href="/static/catalog.html" class="pure-menu-link">Catalog</a></li>
                 <li class="pure-menu-item"><a href="/static/schedule.html" class="pure-menu-link">Schedule</a></li>
+                <li class="pure-menu-item"><a href="/schedule-builder" class="pure-menu-link">Schedule Builder</a></li>
                 <li class="pure-menu-item"><a href="/static/guide.html" class="pure-menu-link">Guide</a></li>
                 <li class="pure-menu-item"><a href="/static/stations.html" class="pure-menu-link">Stations</a></li>
+                <li class="pure-menu-item"><a href="/p2p" class="pure-menu-link">P2P Torrents</a></li>
                 ${playerMenuItems}
                 <li class="pure-menu-item"><a href="/static/about.html" class="pure-menu-link">About</a></li>
             </ul>

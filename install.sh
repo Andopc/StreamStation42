@@ -59,7 +59,7 @@ elif type "python" > /dev/null; then
 else
     echo -e "${ERROR} Couldn't find python or python3 on the path"
     echo -e "${ERROR} Please install python and try again"
-    exit -1
+    exit 1
 fi
 
 echo -e "${INFO} Moving forward with python :: ${GREEN}$python${NC}"
@@ -83,12 +83,12 @@ else
     else
       echo -e "${ERROR} Virtual environment does not contain activate script - this is an error"
       echo -e "${ERROR} Ensure that python3-venv is installed and run the installer again."
-      exit -1
+      exit 1
     fi
   else
     echo -e "${ERROR} Virtual environment failed - check that your python venv is installed on your system"
     echo -e "${ERROR} Exiting with errors."
-    exit -1
+    exit 1
   fi
 fi
 

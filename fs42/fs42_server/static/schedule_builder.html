@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StreamStation42 – Schedule Builder</title>
+  <style>
+    /* ── Base ── */
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0d0d1a;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+    a{color:#7cb4e0;text-decoration:none}
+    a:hover{color:#e94560}
+
+    /* ── Top bar ── */
+    .topbar{background:#1a1a2e;border-bottom:2px solid #e94560;padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    .topbar h1{font-size:1.1em;color:#e94560;white-space:nowrap}
+    .topbar nav{display:flex;gap:12px;flex-wrap:wrap}
+    .topbar nav a{color:#aaa;font-size:0.85em}
+    .topbar nav a:hover{color:#e94560}
+
+    /* ── Layout ── */
+    .layout{display:flex;height:calc(100vh - 50px)}
+    .sidebar{width:240px;min-width:200px;background:#111;border-right:1px solid #222;display:flex;flex-direction:column;overflow:hidden}
+    .sidebar-head{padding:12px;border-bottom:1px solid #222;font-size:0.8em;color:#aaa;text-transform:uppercase;letter-spacing:.5px}
+    .station-list{flex:1;overflow-y:auto}
+    .station-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #1a1a1a;transition:.15s}
+    .station-item:hover{background:#1a1a2e}
+    .station-item.active{background:#1a1a2e;border-left:3px solid #e94560}
+    .station-name{font-weight:600;color:#e0e0e0}
+    .station-meta{font-size:0.78em;color:#666;margin-top:2px}
+    .badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:.72em;font-weight:700;vertical-align:middle;margin-left:4px}
+    .badge-standard{background:#1a2a3a;color:#7cb4e0;border:1px solid #7cb4e0}
+    .badge-torrent{background:#2a1a3a;color:#b07ce0;border:1px solid #b07ce0}
+    .badge-streaming{background:#1a3a1a;color:#7ce09a;border:1px solid #7ce09a}
+    .badge-loop{background:#3a2a1a;color:#e0b07c;border:1px solid #e0b07c}
+    .badge-guide{background:#3a1a1a;color:#e0507c;border:1px solid #e0507c}
+
+    /* ── Main panel ── */
+    .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .toolbar{background:#15152a;border-bottom:1px solid #222;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .toolbar h2{font-size:1em;color:#e0e0e0;flex:1}
+    button{background:#e94560;color:#fff;border:none;padding:7px 15px;border-radius:4px;cursor:pointer;font-size:.85em;transition:.15s}
+    button:hover{background:#c73652}
+    button.sec{background:#2a2a3a;color:#ccc}
+    button.sec:hover{background:#3a3a4a}
+    button.green{background:#2a5a2a;color:#7ce09a;border:1px solid #7ce09a}
+    button.green:hover{background:#3a7a3a}
+    .scroll-area{flex:1;overflow:auto;padding:16px}
+
+    /* ── Status banner ── */
+    #banner{position:fixed;bottom:18px;right:18px;padding:10px 18px;border-radius:6px;font-size:.88em;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
+    #banner.show{opacity:1}
+    #banner.ok{background:#1a3a1a;border:1px solid #4caf50;color:#4caf50}
+    #banner.err{background:#3a1a1a;border:1px solid #e94560;color:#e94560}
+
+    /* ────────────────────────────────
+       STANDARD CHANNEL — weekly grid
+    ──────────────────────────────── */
+    .grid-wrap{overflow:auto;width:100%}
+    .grid-table{border-collapse:collapse;min-width:900px;table-layout:fixed}
+    .grid-table th{background:#1a1a2e;color:#aaa;font-weight:600;font-size:.75em;text-transform:uppercase;padding:7px 5px;border:1px solid #222;text-align:center}
+    .grid-table th.hour-col{width:54px;background:#111}
+    .grid-table td{border:1px solid #1e1e30;vertical-align:top;padding:2px;height:38px;position:relative}
+    .grid-table td.off-air{background:#0d0d15}
+    .grid-cell{width:100%;height:100%;padding:3px 5px;cursor:pointer;border-radius:3px;font-size:.72em;line-height:1.3;transition:.1s;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+    .grid-cell:hover{filter:brightness(1.3)}
+    .grid-cell.empty{color:#444;font-style:italic}
+    .grid-cell.has-content{color:#e0e0e0}
+    .grid-cell .cell-tag{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .grid-cell .cell-sub{color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.9em}
+    /* signoff event */
+    .grid-cell.signoff{background:#2a1010;color:#e94560}
+    /* colour palette for tags */
+    .c0{background:#1a2a3a} .c1{background:#1a3a2a} .c2{background:#2a1a3a}
+    .c3{background:#3a2a1a} .c4{background:#1a3a3a} .c5{background:#3a1a2a}
+    .c6{background:#2a3a1a} .c7{background:#3a1a3a} .c8{background:#1a2a1a}
+    .c9{background:#3a3a1a}
+
+    /* ── Copy-day bar ── */
+    .copy-bar{background:#13132a;border:1px solid #222;border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.85em}
+    .copy-bar label{color:#aaa}
+    select{background:#1a1a2e;color:#e0e0e0;border:1px solid #444;padding:5px 9px;border-radius:4px;font-size:.85em}
+
+    /* ────────────────────────────────
+       TORRENT CHANNEL — stream list
+    ──────────────────────────────── */
+    .stream-list{display:flex;flex-direction:column;gap:8px}
+    .stream-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:6px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;transition:.15s}
+    .stream-card:hover{border-color:#444}
+    .drag-handle{color:#444;cursor:grab;font-size:1.2em;padding:2px 4px;user-select:none;align-self:center}
+    .drag-handle:active{cursor:grabbing}
+    .stream-card.dragging{opacity:.4}
+    .stream-card.drag-over{border-color:#e94560}
+    .stream-fields{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stream-fields.wide{grid-template-columns:1fr}
+    .field-group{display:flex;flex-direction:column;gap:3px}
+    .field-group label{font-size:.75em;color:#888;text-transform:uppercase;letter-spacing:.3px}
+    .field-group input,.field-group textarea{background:#0d0d1a;border:1px solid #333;color:#e0e0e0;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:.85em;width:100%}
+    .field-group input:focus,.field-group textarea:focus{outline:none;border-color:#7cb4e0}
+    .field-group textarea{resize:vertical;min-height:40px}
+    .stream-actions{display:flex;flex-direction:column;gap:6px;align-self:center}
+    .stream-num{color:#555;font-size:.8em;font-weight:700;width:22px;text-align:center;align-self:center}
+    .total-runtime{color:#888;font-size:.82em;margin-top:4px}
+
+    /* ────────────────────────────────
+       SLOT EDIT MODAL
+    ──────────────────────────────── */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
+    .overlay.hidden{display:none}
+    .modal{background:#1a1a2e;border:1px solid #333;border-radius:8px;width:540px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column}
+    .modal-head{padding:14px 18px;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between}
+    .modal-head h3{font-size:1em;color:#e94560}
+    .modal-close{background:none;border:none;color:#aaa;font-size:1.3em;cursor:pointer;padding:0}
+    .modal-body{padding:18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px}
+    .modal-foot{padding:12px 18px;border-top:1px solid #222;display:flex;gap:8px;justify-content:flex-end}
+    .form-row{display:flex;flex-direction:column;gap:5px}
+    .form-row label{font-size:.8em;color:#888;text-transform:uppercase;letter-spacing:.3px}
+    .form-row input,.form-row select{background:#0d0d1a;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:4px;font-size:.88em;width:100%}
+    .form-row input:focus,.form-row select:focus{outline:none;border-color:#7cb4e0}
+    .hint{font-size:.78em;color:#666;margin-top:2px}
+    .radio-row{display:flex;gap:12px;flex-wrap:wrap}
+    .radio-row label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#ccc;font-size:.88em}
+
+    /* ────────────────────────────────
+       FILE BROWSER MODAL
+    ──────────────────────────────── */
+    .browser-path{font-family:monospace;font-size:.82em;color:#7cb4e0;padding:8px 14px;background:#0d0d1a;border-bottom:1px solid #222}
+    .browser-list{flex:1;overflow-y:auto;max-height:350px}
+    .browser-item{padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1a1a1a;transition:.1s}
+    .browser-item:hover{background:#1a1a2e}
+    .browser-item .icon{width:20px;text-align:center;flex-shrink:0}
+    .browser-item .item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9em}
+    .browser-item .item-meta{color:#666;font-size:.78em;white-space:nowrap}
+    .browser-item.dir-item{color:#7cb4e0}
+    .browser-item.file-item{color:#e0e0e0}
+    .browser-selected{background:#1a1a2e;border-left:3px solid #e94560}
+    .browser-selected-path{font-family:monospace;font-size:.8em;color:#e0e0e0;padding:8px 14px;background:#0d0d1a;border-top:1px solid #222;min-height:36px}
+
+    /* ── empty state ── */
+    .empty-state{text-align:center;padding:60px 20px;color:#444}
+    .empty-state h3{font-size:1.1em;margin-bottom:8px}
+
+    /* ── misc ── */
+    hr{border:none;border-top:1px solid #222;margin:8px 0}
+    .mt-8{margin-top:8px}
+    .flex-row{display:flex;gap:8px;align-items:center}
+    .info-box{background:#131320;border:1px solid #2a2a4a;border-radius:5px;padding:10px 14px;font-size:.82em;color:#888;line-height:1.6}
+    .info-box code{background:#0d0d15;padding:1px 5px;border-radius:3px;color:#7cb4e0}
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <h1>📅 Schedule Builder</h1>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/static/stations.html">Stations</a>
+    <a href="/schedule-builder" class="active">Schedule Builder</a>
+    <a href="/p2p">P2P Torrents</a>
+    <a href="/static/remote.html">Remote</a>
+  </nav>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- Sidebar: station list -->
+  <div class="sidebar">
+    <div class="sidebar-head">Stations</div>
+    <div class="station-list" id="station-list">
+      <div style="padding:14px;color:#555">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="toolbar" id="toolbar" style="display:none">
+      <h2 id="toolbar-title">—</h2>
+      <button class="sec" onclick="reloadStation()">⟳ Reload</button>
+      <button class="green" id="save-btn" onclick="saveSchedule()">💾 Save Schedule</button>
+    </div>
+
+    <div class="scroll-area" id="main-content">
+      <div class="empty-state">
+        <h3>Select a station</h3>
+        <p>Choose a station from the left panel to edit its schedule.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status banner -->
+<div id="banner"></div>
+
+<!-- ══════════ SLOT EDIT MODAL (standard channels) ══════════ -->
+<div class="overlay hidden" id="slot-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="slot-modal-title">Edit Slot</h3>
+      <button class="modal-close" onclick="closeSlotModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Slot type</label>
+        <div class="radio-row">
+          <label><input type="radio" name="slot-type" value="tags" checked onchange="onSlotTypeChange()"> Content tag / folder</label>
+          <label><input type="radio" name="slot-type" value="file" onchange="onSlotTypeChange()"> Specific file</label>
+          <label><input type="radio" name="slot-type" value="signoff" onchange="onSlotTypeChange()"> Sign-off event</label>
+          <label><input type="radio" name="slot-type" value="empty" onchange="onSlotTypeChange()"> Off-air (empty)</label>
+        </div>
+      </div>
+
+      <!-- Tags / folder -->
+      <div id="tags-section" class="form-row">
+        <label>Content tag or folder path</label>
+        <div class="flex-row">
+          <input type="text" id="slot-tags" placeholder="e.g.  sitcom  or  catalog/myshow" />
+          <button class="sec" onclick="openBrowser('tags')">📁</button>
+        </div>
+        <div class="hint">Maps to a sub-folder under <code>content_dir</code>, e.g. <code>sitcom</code> → <code>catalog/nbc/sitcom/</code>.  You can also paste a full path.</div>
+      </div>
+
+      <!-- Specific file -->
+      <div id="file-section" class="form-row" style="display:none">
+        <label>Video file path</label>
+        <div class="flex-row">
+          <input type="text" id="slot-file" placeholder="catalog/myshow/ep1.mp4" />
+          <button class="sec" onclick="openBrowser('file')">📁</button>
+        </div>
+        <div class="hint">Absolute or relative path to a specific video file.</div>
+      </div>
+
+      <!-- Advanced (visible for tags + file types) -->
+      <div id="advanced-section">
+        <hr/>
+        <div class="form-row">
+          <label>Break strategy (optional override)</label>
+          <select id="slot-break">
+            <option value="">(inherit from station)</option>
+            <option value="standard">standard</option>
+            <option value="end">end</option>
+            <option value="center">center</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Bump directory (optional override)</label>
+          <div class="flex-row">
+            <input type="text" id="slot-bump" placeholder="(inherit)" />
+            <button class="sec" onclick="openBrowser('bump')">📁</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Commercial directory (optional override)</label>
+          <div class="flex-row">
+            <input type="text" id="slot-commercial" placeholder="(inherit)" />
+            <button class="sec" onclick="openBrowser('commercial')">📁</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Apply-to range -->
+      <hr/>
+      <div class="form-row">
+        <label>Apply this slot to:</label>
+        <div class="radio-row">
+          <label><input type="radio" name="apply-range" value="this" checked> This slot only</label>
+          <label><input type="radio" name="apply-range" value="day"> Entire day column</label>
+          <label><input type="radio" name="apply-range" value="all"> All 7 days (same hour)</label>
+          <label><input type="radio" name="apply-range" value="week"> Entire week</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="sec" onclick="clearSlot()">🗑 Clear slot</button>
+      <button class="sec" onclick="closeSlotModal()">Cancel</button>
+      <button onclick="applySlot()">✓ Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FILE BROWSER MODAL ══════════ -->
+<div class="overlay hidden" id="browser-modal">
+  <div class="modal" style="width:500px">
+    <div class="modal-head">
+      <h3>Browse Files</h3>
+      <button class="modal-close" onclick="closeBrowser()">✕</button>
+    </div>
+    <div class="browser-path" id="browser-path-display"></div>
+    <div class="browser-list" id="browser-list"></div>
+    <div class="browser-selected-path" id="browser-selected-display">No file selected</div>
+    <div class="modal-foot">
+      <button class="sec" onclick="closeBrowser()">Cancel</button>
+      <button id="browser-select-btn" onclick="confirmBrowserSelection()">Select</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   State
+═══════════════════════════════════════════════════════════ */
+const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const HOURS = Array.from({length:24},(_,i)=>i);
+
+let stations = [];
+let activeStation = null;   // full schedule response from API
+let scheduleData = {};      // working copy: {day: {hour: slotObj}}
+let torrentStreams = [];     // working copy for torrent channels
+let torrentDir = 'catalog';
+let tagColorMap = {};
+let colorIdx = 0;
+
+// Slot modal state
+let editingDay = null;
+let editingHour = null;
+
+// Browser modal state
+let browserPath = '';
+let browserCallback = null; // function(path) called on selection
+let browserSelected = '';
+
+/* ═══════════════════════════════════════════════════════════
+   Utilities
+═══════════════════════════════════════════════════════════ */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function pad(n){ return String(n).padStart(2,'0') }
+function fmtDuration(s){
+  s = parseInt(s)||0;
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  if(h) return `${h}h ${pad(m)}m`;
+  if(m) return `${m}m ${pad(sec)}s`;
+  return `${sec}s`;
+}
+function totalSecs(streams){ return streams.reduce((a,s)=>a+(parseInt(s.duration)||0),0) }
+
+function showBanner(msg, ok=true){
+  const el = document.getElementById('banner');
+  el.textContent = msg;
+  el.className = `show ${ok?'ok':'err'}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.className='',4000);
+}
+
+function tagColor(tag){
+  if(!tag) return '';
+  if(tagColorMap[tag] === undefined){
+    tagColorMap[tag] = 'c'+(colorIdx%10);
+    colorIdx++;
+  }
+  return tagColorMap[tag];
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Station list
+═══════════════════════════════════════════════════════════ */
+async function loadStations(){
+  try{
+    const r = await fetch('/schedule-builder/stations');
+    stations = await r.json();
+    renderStationList();
+  }catch(e){ showBanner('Could not load stations: '+e.message,false) }
+}
+
+function renderStationList(){
+  const el = document.getElementById('station-list');
+  if(!stations.length){ el.innerHTML='<div style="padding:14px;color:#555">No stations configured</div>'; return; }
+  el.innerHTML = stations.map(s=>`
+    <div class="station-item" onclick="selectStation('${esc(s.network_name)}')"
+         id="sitem-${esc(s.network_name)}">
+      <div class="station-name">
+        ${esc(s.network_name)}
+        <span class="badge badge-${esc(s.network_type)}">${esc(s.network_type)}</span>
+      </div>
+      <div class="station-meta">ch ${s.channel_number}</div>
+    </div>
+  `).join('');
+}
+
+async function selectStation(name){
+  document.querySelectorAll('.station-item').forEach(el=>el.classList.remove('active'));
+  const item = document.getElementById('sitem-'+name);
+  if(item) item.classList.add('active');
+
+  try{
+    const r = await fetch(`/schedule-builder/${encodeURIComponent(name)}`);
+    if(!r.ok){ showBanner('Could not load station',false); return; }
+    activeStation = await r.json();
+    initWorkingCopy();
+    renderMainPanel();
+  }catch(e){ showBanner('Error: '+e.message,false) }
+}
+
+function reloadStation(){
+  if(activeStation) selectStation(activeStation.network_name);
+}
+
+function initWorkingCopy(){
+  tagColorMap={};colorIdx=0;
+  if(activeStation.network_type==='torrent'){
+    torrentStreams = (activeStation.torrent_streams||[]).map(s=>({...s}));
+    torrentDir = activeStation.torrent_dir||'catalog';
+  } else {
+    scheduleData={};
+    for(const day of DAYS){
+      scheduleData[day]={};
+      for(const h of HOURS){
+        scheduleData[day][String(h)] = {...(activeStation.schedule?.[day]?.[String(h)]||{})};
+      }
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Main panel rendering
+═══════════════════════════════════════════════════════════ */
+function renderMainPanel(){
+  const t = document.getElementById('toolbar');
+  t.style.display='flex';
+  document.getElementById('toolbar-title').textContent =
+    `${activeStation.network_name}  ·  ch ${activeStation.channel_number}`;
+
+  if(activeStation.network_type==='torrent'){
+    renderTorrentEditor();
+  } else {
+    renderWeeklyGrid();
+  }
+}
+
+/* ─────────────────────────────
+   Weekly grid (standard / loop)
+───────────────────────────── */
+function renderWeeklyGrid(){
+  const mc = document.getElementById('main-content');
+
+  const copyBar = `
+    <div class="copy-bar">
+      <label>Copy day:</label>
+      <select id="copy-from">${DAYS.map((d,i)=>`<option value="${d}">${DAY_LABELS[i]}</option>`).join('')}</select>
+      <label>→ to:</label>
+      <select id="copy-to" multiple style="height:36px">${DAYS.map((d,i)=>`<option value="${d}">${DAY_LABELS[i]}</option>`).join('')}</select>
+      <button class="sec" onclick="copyDay()">Copy</button>
+      <span style="color:#555;font-size:.8em">|</span>
+      <label style="margin-left:4px">Clear day:</label>
+      <select id="clear-day">${DAYS.map((d,i)=>`<option value="${d}">${DAY_LABELS[i]}</option>`).join('')}</select>
+      <button class="sec" onclick="clearDay()">Clear</button>
+    </div>`;
+
+  let gridHtml = `
+    <div class="grid-wrap">
+    <table class="grid-table">
+      <thead><tr>
+        <th class="hour-col">Hour</th>
+        ${DAY_LABELS.map((d,i)=>`<th data-day="${DAYS[i]}">${d}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+  for(const h of HOURS){
+    gridHtml += `<tr>
+      <td style="background:#111;text-align:center;color:#555;font-size:.72em;font-weight:700">${pad(h)}:00</td>`;
+    for(const day of DAYS){
+      const slot = scheduleData[day]?.[String(h)]||{};
+      gridHtml += `<td onclick="openSlotModal('${day}',${h})">${renderCell(slot)}</td>`;
+    }
+    gridHtml += '</tr>';
+  }
+  gridHtml += '</tbody></table></div>';
+
+  mc.innerHTML = copyBar + gridHtml;
+}
+
+function renderCell(slot){
+  if(!slot || !Object.keys(slot).length){
+    return `<div class="grid-cell empty">—</div>`;
+  }
+  if(slot.event==='signoff'){
+    return `<div class="grid-cell signoff"><div class="cell-tag">SIGN OFF</div></div>`;
+  }
+  const tag = Array.isArray(slot.tags)?slot.tags[0]:slot.tags||'';
+  const fp  = slot.file_path||'';
+  const label = tag||fp;
+  const shortLabel = label.split('/').pop()||label;
+  const cls = tagColor(label)||'';
+  return `<div class="grid-cell has-content ${cls}">
+    <div class="cell-tag">${esc(shortLabel)}</div>
+    ${slot.break_strategy?`<div class="cell-sub">${esc(slot.break_strategy)}</div>`:''}
+  </div>`;
+}
+
+/* refresh just the cell for day/hour without full redraw */
+function refreshCell(day, hour){
+  const tbl = document.querySelector('.grid-table');
+  if(!tbl) return;
+  const rows = tbl.querySelectorAll('tbody tr');
+  const row = rows[hour];
+  if(!row) return;
+  const cells = row.querySelectorAll('td');
+  const dayIdx = DAYS.indexOf(day)+1;
+  if(cells[dayIdx]){
+    const slot = scheduleData[day]?.[String(hour)]||{};
+    cells[dayIdx].innerHTML = renderCell(slot);
+    cells[dayIdx].onclick = ()=>openSlotModal(day,hour);
+  }
+}
+
+/* ─────────────────────────────
+   Torrent stream editor
+───────────────────────────── */
+function renderTorrentEditor(){
+  const mc = document.getElementById('main-content');
+
+  const header = `
+    <div class="info-box" style="margin-bottom:14px">
+      P2P channels play streams in order, then loop back to the start (reruns enabled by default).
+      Drag rows to reorder. The player calculates the current position using wall-clock time so all
+      viewers are in sync.  <code>duration</code> is in seconds.
+    </div>
+    <div class="flex-row" style="margin-bottom:12px">
+      <label style="color:#aaa;font-size:.85em">Torrent dir:</label>
+      <input type="text" id="torrent-dir-input" value="${esc(torrentDir)}"
+             style="background:#0d0d1a;border:1px solid #333;color:#e0e0e0;padding:5px 9px;border-radius:4px;font-size:.85em;width:260px"
+             onchange="torrentDir=this.value"/>
+      <button class="sec" onclick="openBrowser('torrent_dir')">📁</button>
+      <span style="flex:1"></span>
+      <span class="total-runtime" id="total-runtime"></span>
+      <button onclick="addTorrentStream()">+ Add Stream</button>
+    </div>`;
+
+  mc.innerHTML = header + '<div class="stream-list" id="stream-list"></div>';
+  renderStreamList();
+}
+
+function renderStreamList(){
+  const el = document.getElementById('stream-list');
+  if(!el) return;
+  if(!torrentStreams.length){
+    el.innerHTML='<div style="color:#555;padding:20px;text-align:center">No streams yet — click "+ Add Stream" to begin.</div>';
+    updateTotalRuntime();
+    return;
+  }
+  el.innerHTML = torrentStreams.map((s,i)=> `
+    <div class="stream-card" draggable="true" id="sc-${i}"
+         ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
+         ondrop="dragDrop(event,${i})" ondragleave="dragLeave(event,${i})">
+      <div class="drag-handle">⋮⋮</div>
+      <div class="stream-num">#${i+1}</div>
+      <div class="stream-fields">
+        <div class="field-group">
+          <label>Title</label>
+          <input type="text" value="${esc(s.title||'')}"
+                 oninput="torrentStreams[${i}].title=this.value"/>
+        </div>
+        <div class="field-group">
+          <label>Duration (seconds)</label>
+          <input type="number" min="1" value="${esc(s.duration||0)}"
+                 oninput="torrentStreams[${i}].duration=parseInt(this.value)||0;updateTotalRuntime()"/>
+        </div>
+        <div class="field-group">
+          <label>File path (local)</label>
+          <div class="flex-row">
+            <input type="text" value="${esc(s.file_path||'')}"
+                   oninput="torrentStreams[${i}].file_path=this.value"
+                   placeholder="catalog/mychannel/ep1.av1"/>
+            <button class="sec" style="white-space:nowrap;padding:4px 8px"
+                    onclick="openBrowserFor(${i})">📁</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Magnet link</label>
+          <input type="text" value="${esc(s.magnet||'')}"
+                 oninput="torrentStreams[${i}].magnet=this.value"
+                 placeholder="magnet:?xt=urn:btih:…"/>
+        </div>
+        <div class="field-group wide" style="grid-column:1/-1">
+          <label>Description (optional)</label>
+          <textarea oninput="torrentStreams[${i}].description=this.value"
+                    rows="1">${esc(s.description||'')}</textarea>
+        </div>
+      </div>
+      <div class="stream-actions">
+        <button class="sec" style="padding:4px 8px" onclick="moveStream(${i},-1)" ${i===0?'disabled':''}>▲</button>
+        <button class="sec" style="padding:4px 8px" onclick="moveStream(${i},1)" ${i===torrentStreams.length-1?'disabled':''}>▼</button>
+        <button style="background:#3a1a1a;padding:4px 8px" onclick="removeStream(${i})">✕</button>
+      </div>
+    </div>
+  `).join('');
+  updateTotalRuntime();
+}
+
+function updateTotalRuntime(){
+  const el = document.getElementById('total-runtime');
+  if(el) el.textContent = `Total runtime: ${fmtDuration(totalSecs(torrentStreams))} (${torrentStreams.length} stream${torrentStreams.length!==1?'s':''})`;
+}
+
+function addTorrentStream(){
+  torrentStreams.push({title:'New Stream',duration:1800,file_path:'',magnet:'',description:''});
+  renderStreamList();
+}
+
+function removeStream(i){
+  torrentStreams.splice(i,1);
+  renderStreamList();
+}
+
+function moveStream(i, dir){
+  const j = i+dir;
+  if(j<0||j>=torrentStreams.length) return;
+  [torrentStreams[i],torrentStreams[j]]=[torrentStreams[j],torrentStreams[i]];
+  renderStreamList();
+}
+
+function openBrowserFor(streamIdx){
+  openBrowser('stream_file', path=>{
+    torrentStreams[streamIdx].file_path = path;
+    renderStreamList();
+  });
+}
+
+/* ── Drag-and-drop for stream list ── */
+let dragSrc = null;
+function dragStart(e,i){ dragSrc=i; document.getElementById('sc-'+i).classList.add('dragging'); }
+function dragOver(e,i){ e.preventDefault(); document.getElementById('sc-'+i)?.classList.add('drag-over'); }
+function dragLeave(e,i){ document.getElementById('sc-'+i)?.classList.remove('drag-over'); }
+function dragDrop(e,i){
+  e.preventDefault();
+  document.getElementById('sc-'+i)?.classList.remove('drag-over');
+  document.getElementById('sc-'+dragSrc)?.classList.remove('dragging');
+  if(dragSrc===null||dragSrc===i) return;
+  const item = torrentStreams.splice(dragSrc,1)[0];
+  torrentStreams.splice(i,0,item);
+  dragSrc=null;
+  renderStreamList();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Slot edit modal (standard channels)
+═══════════════════════════════════════════════════════════ */
+function openSlotModal(day, hour){
+  editingDay = day; editingHour = hour;
+  const slot = scheduleData[day]?.[String(hour)]||{};
+  const dayLabel = DAY_LABELS[DAYS.indexOf(day)];
+
+  document.getElementById('slot-modal-title').textContent =
+    `${dayLabel}  ${pad(hour)}:00 – ${pad(hour+1)}:00`;
+
+  // Determine current type
+  let type = 'empty';
+  if(slot.event==='signoff') type='signoff';
+  else if(slot.file_path) type='file';
+  else if(slot.tags) type='tags';
+
+  document.querySelector(`input[name="slot-type"][value="${type}"]`).checked=true;
+  onSlotTypeChange();
+
+  document.getElementById('slot-tags').value = Array.isArray(slot.tags)?slot.tags.join(', '):(slot.tags||'');
+  document.getElementById('slot-file').value = slot.file_path||'';
+  document.getElementById('slot-break').value = slot.break_strategy||'';
+  document.getElementById('slot-bump').value = slot.bump_dir||'';
+  document.getElementById('slot-commercial').value = slot.commercial_dir||'';
+  document.querySelector('input[name="apply-range"][value="this"]').checked=true;
+
+  document.getElementById('slot-modal').classList.remove('hidden');
+}
+
+function closeSlotModal(){ document.getElementById('slot-modal').classList.add('hidden'); }
+
+function onSlotTypeChange(){
+  const type = document.querySelector('input[name="slot-type"]:checked')?.value||'empty';
+  document.getElementById('tags-section').style.display = type==='tags'?'flex':'none';
+  document.getElementById('file-section').style.display = type==='file'?'flex':'none';
+  document.getElementById('advanced-section').style.display = (type==='tags'||type==='file')?'block':'none';
+}
+
+function buildSlotObject(){
+  const type = document.querySelector('input[name="slot-type"]:checked')?.value||'empty';
+  if(type==='empty') return {};
+  if(type==='signoff') return {event:'signoff'};
+
+  const obj = {};
+  if(type==='tags'){
+    const raw = document.getElementById('slot-tags').value.trim();
+    if(raw.includes(',')){
+      obj.tags = raw.split(',').map(t=>t.trim()).filter(Boolean);
+    } else if(raw){
+      obj.tags = raw;
+    }
+  } else {
+    const fp = document.getElementById('slot-file').value.trim();
+    if(fp) obj.file_path = fp;
+  }
+  const bs = document.getElementById('slot-break').value;
+  const bd = document.getElementById('slot-bump').value.trim();
+  const cd = document.getElementById('slot-commercial').value.trim();
+  if(bs) obj.break_strategy=bs;
+  if(bd) obj.bump_dir=bd;
+  if(cd) obj.commercial_dir=cd;
+  return obj;
+}
+
+function applySlot(){
+  const slotObj = buildSlotObject();
+  const range = document.querySelector('input[name="apply-range"]:checked')?.value||'this';
+
+  if(range==='this'){
+    scheduleData[editingDay][String(editingHour)] = slotObj;
+    refreshCell(editingDay, editingHour);
+  } else if(range==='day'){
+    for(const h of HOURS){
+      scheduleData[editingDay][String(h)] = {...slotObj};
+    }
+    renderWeeklyGrid();
+  } else if(range==='all'){
+    for(const day of DAYS){
+      scheduleData[day][String(editingHour)] = {...slotObj};
+    }
+    for(const day of DAYS) refreshCell(day, editingHour);
+  } else { // week
+    for(const day of DAYS) for(const h of HOURS) scheduleData[day][String(h)] = {...slotObj};
+    renderWeeklyGrid();
+  }
+  closeSlotModal();
+}
+
+function clearSlot(){
+  scheduleData[editingDay][String(editingHour)] = {};
+  refreshCell(editingDay, editingHour);
+  closeSlotModal();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Copy / clear day helpers
+═══════════════════════════════════════════════════════════ */
+function copyDay(){
+  const from = document.getElementById('copy-from').value;
+  const toSel = document.getElementById('copy-to');
+  const targets = Array.from(toSel.selectedOptions).map(o=>o.value);
+  if(!targets.length){ showBanner('Select at least one target day',false); return; }
+  for(const to of targets){
+    if(to===from) continue;
+    for(const h of HOURS){
+      scheduleData[to][String(h)] = {...(scheduleData[from][String(h)]||{})};
+    }
+  }
+  renderWeeklyGrid();
+  showBanner(`Copied ${from} → ${targets.join(', ')}`);
+}
+
+function clearDay(){
+  const day = document.getElementById('clear-day').value;
+  for(const h of HOURS) scheduleData[day][String(h)] = {};
+  renderWeeklyGrid();
+  showBanner(`Cleared ${day}`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   File browser modal
+═══════════════════════════════════════════════════════════ */
+let browserTarget = null; // 'tags' | 'file' | 'bump' | 'commercial' | 'torrent_dir' | 'stream_file'
+let browserStreamCallback = null;
+
+function openBrowser(target, callback){
+  browserTarget = target;
+  browserStreamCallback = callback||null;
+  browserSelected = '';
+  document.getElementById('browser-selected-display').textContent = 'No selection';
+  document.getElementById('browser-modal').classList.remove('hidden');
+  browseDir('');
+}
+
+function closeBrowser(){
+  document.getElementById('browser-modal').classList.add('hidden');
+  browserSelected='';
+}
+
+async function browseDir(path){
+  browserPath = path;
+  document.getElementById('browser-path-display').textContent = '/'+path;
+  const listEl = document.getElementById('browser-list');
+  listEl.innerHTML = '<div style="padding:10px;color:#555">Loading…</div>';
+  try{
+    const r = await fetch('/schedule-builder/browse?path='+encodeURIComponent(path));
+    const data = await r.json();
+    let html='';
+    if(data.parent!==undefined && data.path!==''){
+      html+=`<div class="browser-item dir-item" onclick="browseDir('${esc(data.parent)}')">
+        <span class="icon">⬆</span><span class="item-name">..</span></div>`;
+    }
+    for(const d of data.dirs){
+      html+=`<div class="browser-item dir-item" onclick="browseDir('${esc(d.path)}')">
+        <span class="icon">📁</span><span class="item-name">${esc(d.name)}</span></div>`;
+    }
+    for(const f of data.files){
+      html+=`<div class="browser-item file-item" onclick="selectBrowserFile('${esc(f.path)}',this)">
+        <span class="icon">🎬</span>
+        <span class="item-name">${esc(f.name)}</span>
+        <span class="item-meta">${f.size_mb} MB</span></div>`;
+    }
+    if(!html) html='<div style="padding:12px;color:#555">Empty directory</div>';
+    listEl.innerHTML=html;
+  }catch(e){ listEl.innerHTML='<div style="padding:10px;color:#e94560">Error: '+esc(e.message)+'</div>'; }
+}
+
+function selectBrowserFile(path, el){
+  document.querySelectorAll('.browser-item').forEach(e=>e.classList.remove('browser-selected'));
+  el.classList.add('browser-selected');
+  browserSelected = path;
+  document.getElementById('browser-selected-display').textContent = path;
+}
+
+function confirmBrowserSelection(){
+  const sel = browserSelected || browserPath;
+  if(!sel){ closeBrowser(); return; }
+
+  if(browserStreamCallback){
+    browserStreamCallback(sel);
+    closeBrowser(); return;
+  }
+
+  switch(browserTarget){
+    case 'tags':      document.getElementById('slot-tags').value = sel; break;
+    case 'file':      document.getElementById('slot-file').value = sel; break;
+    case 'bump':      document.getElementById('slot-bump').value = sel; break;
+    case 'commercial':document.getElementById('slot-commercial').value = sel; break;
+    case 'torrent_dir':
+      torrentDir = sel;
+      document.getElementById('torrent-dir-input').value = sel;
+      break;
+  }
+  closeBrowser();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Save
+═══════════════════════════════════════════════════════════ */
+async function saveSchedule(){
+  if(!activeStation){ showBanner('No station selected',false); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+
+  try{
+    if(activeStation.network_type==='torrent'){
+      await saveTorrentSchedule();
+    } else {
+      await saveWeeklySchedule();
+    }
+  }finally{
+    btn.disabled=false; btn.textContent='💾 Save Schedule';
+  }
+}
+
+async function saveWeeklySchedule(){
+  const r = await fetch(`/schedule-builder/${encodeURIComponent(activeStation.network_name)}/weekly`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({schedule: scheduleData})
+  });
+  const d = await r.json();
+  if(!r.ok){ showBanner(d.detail||'Save failed',false); return; }
+  showBanner('✓ Schedule saved!');
+  // Refresh from server to confirm
+  const fresh = await fetch(`/schedule-builder/${encodeURIComponent(activeStation.network_name)}`);
+  activeStation = await fresh.json();
+}
+
+async function saveTorrentSchedule(){
+  const r = await fetch(`/schedule-builder/${encodeURIComponent(activeStation.network_name)}/torrent-streams`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({torrent_streams: torrentStreams, torrent_dir: torrentDir})
+  });
+  const d = await r.json();
+  if(!r.ok){ showBanner(d.detail||'Save failed',false); return; }
+  showBanner('✓ Torrent streams saved!');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Init
+═══════════════════════════════════════════════════════════ */
+loadStations();
+</script>
+</body>
+</html>
