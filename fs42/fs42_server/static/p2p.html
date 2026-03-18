@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamStation42 – P2P Torrent Manager</title>
+  <link rel="stylesheet" href="/static/station_ui.css" />
+  <style>
+    body { background: #111; color: #e0e0e0; font-family: monospace; margin: 0; padding: 0; }
+    .top-bar { background: #1a1a2e; border-bottom: 2px solid #e94560; padding: 12px 20px; display: flex; align-items: center; gap: 20px; }
+    .top-bar h1 { margin: 0; font-size: 1.2em; color: #e94560; }
+    .top-bar a { color: #aaa; text-decoration: none; font-size: 0.9em; }
+    .top-bar a:hover { color: #e94560; }
+    .container { max-width: 960px; margin: 30px auto; padding: 0 20px; }
+    .card { background: #1a1a2e; border: 1px solid #333; border-radius: 6px; padding: 20px; margin-bottom: 24px; }
+    .card h2 { margin: 0 0 16px; font-size: 1em; color: #e94560; text-transform: uppercase; letter-spacing: 1px; }
+    label { display: block; margin-bottom: 6px; color: #aaa; font-size: 0.85em; }
+    input[type="text"] { width: 100%; box-sizing: border-box; background: #0d0d1a; border: 1px solid #444; color: #e0e0e0; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+    button { background: #e94560; color: #fff; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 0.9em; margin-top: 10px; }
+    button:hover { background: #c73652; }
+    button.secondary { background: #333; }
+    button.secondary:hover { background: #555; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-green { background: #1a3a1a; color: #4caf50; border: 1px solid #4caf50; }
+    .badge-orange { background: #3a2a1a; color: #ff9800; border: 1px solid #ff9800; }
+    .badge-red { background: #3a1a1a; color: #e94560; border: 1px solid #e94560; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    th { text-align: left; border-bottom: 1px solid #333; padding: 6px 8px; color: #aaa; font-weight: normal; }
+    td { padding: 6px 8px; border-bottom: 1px solid #1e1e30; vertical-align: middle; }
+    tr:hover td { background: #0d0d1a; }
+    .magnet-link { font-size: 0.75em; word-break: break-all; color: #7cb4e0; }
+    .copy-btn { padding: 2px 8px; font-size: 0.78em; background: #222; border: 1px solid #555; color: #ccc; border-radius: 3px; cursor: pointer; }
+    .copy-btn:hover { background: #444; }
+    #status-banner { padding: 10px 14px; border-radius: 4px; margin-bottom: 16px; display: none; }
+    .msg-ok { background: #1a3a1a; border: 1px solid #4caf50; color: #4caf50; }
+    .msg-err { background: #3a1a1a; border: 1px solid #e94560; color: #e94560; }
+    .instructions { font-size: 0.85em; color: #888; line-height: 1.6; }
+    .instructions code { background: #0d0d1a; padding: 1px 5px; border-radius: 3px; color: #7cb4e0; }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>📡 P2P Torrent Manager</h1>
+  <a href="/">← Dashboard</a>
+  <a href="/static/stations.html">Stations</a>
+  <a href="/static/schedule.html">Schedule</a>
+</div>
+
+<div class="container">
+
+  <div id="status-banner"></div>
+
+  <!-- System Status -->
+  <div class="card" id="sys-card">
+    <h2>System Status</h2>
+    <p id="lt-status">Checking libtorrent availability…</p>
+    <p id="active-count"></p>
+  </div>
+
+  <!-- Active Torrents -->
+  <div class="card">
+    <h2>Active Torrents</h2>
+    <table id="torrent-table">
+      <thead>
+        <tr>
+          <th>Title / Hash</th>
+          <th>Peers</th>
+          <th>Seeds</th>
+          <th>↑ KB/s</th>
+          <th>Progress</th>
+          <th>State</th>
+          <th>Magnet</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="torrent-tbody">
+        <tr><td colspan="8" style="color:#666;text-align:center">Loading…</td></tr>
+      </tbody>
+    </table>
+    <button class="secondary" onclick="loadStatus()" style="margin-top:12px">⟳ Refresh</button>
+  </div>
+
+  <!-- Seed a local file -->
+  <div class="card">
+    <h2>Seed Local Content</h2>
+    <p class="instructions">
+      Enter the path to a local AV1 (or other video) file.  The system will
+      generate a <code>.torrent</code> file and start seeding so peers can
+      download it.  Copy the magnet link and add it to your
+      <code>torrent_channel.json</code> configuration.
+    </p>
+    <label for="seed-path">File path (absolute or relative to FieldStation42 directory)</label>
+    <input type="text" id="seed-path" placeholder="catalog/myshow/episode1.av1" />
+    <button onclick="seedFile()">📤 Start Seeding</button>
+    <div id="seed-result" style="margin-top:12px;display:none">
+      <label>Magnet Link (share this with peers):</label>
+      <div class="magnet-link" id="seed-magnet"></div>
+      <button class="copy-btn" onclick="copyText('seed-magnet')">Copy</button>
+    </div>
+  </div>
+
+  <!-- Add a magnet for downloading -->
+  <div class="card">
+    <h2>Download from Magnet Link</h2>
+    <p class="instructions">
+      Paste a magnet link from another channel host to download and seed their content.
+      The file will be saved to the specified directory and automatically added to the
+      seeding pool so you help distribute it to other peers.
+      <br><br>
+      <strong>Note:</strong> Requires <code>libtorrent</code> to be installed
+      (<code>pip install python-libtorrent</code>).
+    </p>
+    <label for="add-magnet">Magnet link</label>
+    <input type="text" id="add-magnet" placeholder="magnet:?xt=urn:btih:…" />
+    <label for="add-title" style="margin-top:10px">Content title</label>
+    <input type="text" id="add-title" placeholder="My Indie Show S01E01" />
+    <label for="add-dir" style="margin-top:10px">Save to directory</label>
+    <input type="text" id="add-dir" value="catalog" />
+    <button onclick="addMagnet()">📥 Download &amp; Seed</button>
+    <div id="add-result" style="margin-top:12px;display:none;color:#4caf50"></div>
+  </div>
+
+  <!-- How to set up a torrent channel -->
+  <div class="card">
+    <h2>How to Create an Indie P2P Channel</h2>
+    <ol class="instructions">
+      <li>Convert your show to AV1 format (recommended for small file sizes):
+        <br><code>ffmpeg -i input.mp4 -c:v libaom-av1 -crf 35 -b:v 0 output.av1</code>
+      </li>
+      <li>Place the file in a directory like <code>catalog/mychannel/</code></li>
+      <li>Use <strong>Seed Local Content</strong> above to generate a magnet link</li>
+      <li>Copy <code>confs/examples/torrent_channel.json</code> to <code>confs/mychannel.json</code>
+          and fill in your <code>torrent_streams</code> entries with the magnet links</li>
+      <li>Restart FieldStation42 — your channel will appear in the guide</li>
+      <li>Share the magnet links and your <code>.json</code> config with friends so they can
+          join the network and help seed your content!</li>
+    </ol>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+async function loadStatus() {
+  try {
+    const res = await fetch('/torrent/status');
+    const data = await res.json();
+
+    const ltEl = document.getElementById('lt-status');
+    if (data.libtorrent_available) {
+      ltEl.innerHTML = '<span class="badge badge-green">✓ libtorrent active</span> Full P2P seeding and downloading enabled.';
+    } else {
+      ltEl.innerHTML = '<span class="badge badge-orange">⚠ libtorrent not installed</span> Metadata-only mode — local file seeding only. Install with <code>pip install python-libtorrent</code>.';
+    }
+
+    document.getElementById('active-count').textContent =
+      `${data.active_count} active torrent${data.active_count !== 1 ? 's' : ''} in session`;
+
+    const tbody = document.getElementById('torrent-tbody');
+    if (!data.torrents.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="color:#666;text-align:center">No active torrents</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.torrents.map(t => `
+      <tr>
+        <td>
+          <div style="font-weight:bold;color:#e0e0e0">${esc(t.name || t.info_hash.slice(0,12)+'…')}</div>
+          <div style="font-size:0.75em;color:#666">${esc(t.info_hash)}</div>
+        </td>
+        <td>${t.num_peers}</td>
+        <td>${t.num_seeds}</td>
+        <td>${t.upload_rate_kbs}</td>
+        <td>${t.progress}%</td>
+        <td><span class="badge ${stateBadge(t.state)}">${esc(t.state)}</span></td>
+        <td>
+          ${t.magnet ? `<span class="magnet-link" id="mag-${esc(t.info_hash)}">${esc(t.magnet.slice(0,60))}…</span>
+          <button class="copy-btn" onclick="copyFull('${esc(t.info_hash)}','${esc(t.magnet)}')">Copy</button>` : '—'}
+        </td>
+        <td>
+          <button class="copy-btn" style="color:#e94560" onclick="removeTorrent('${esc(t.info_hash)}')">✕</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error(e);
+    document.getElementById('torrent-tbody').innerHTML =
+      '<tr><td colspan="8" style="color:#e94560">Error loading status — is the server running?</td></tr>';
+  }
+}
+
+function stateBadge(state) {
+  if (state.includes('seeding')) return 'badge-green';
+  if (state.includes('download')) return 'badge-orange';
+  return 'badge-red';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function seedFile() {
+  const fp = document.getElementById('seed-path').value.trim();
+  if (!fp) { showBanner('Please enter a file path', false); return; }
+  showBanner('Starting seed…', true);
+  try {
+    const res = await fetch('/torrent/seed', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({file_path: fp})
+    });
+    const data = await res.json();
+    if (!res.ok) { showBanner(data.detail || 'Error', false); return; }
+    showBanner('✓ Seeding started! Info-hash: ' + data.info_hash, true);
+    document.getElementById('seed-magnet').textContent = data.magnet;
+    document.getElementById('seed-result').style.display = 'block';
+    loadStatus();
+  } catch(e) { showBanner('Network error: ' + e.message, false); }
+}
+
+async function addMagnet() {
+  const magnet = document.getElementById('add-magnet').value.trim();
+  const title  = document.getElementById('add-title').value.trim() || 'Unknown';
+  const dir    = document.getElementById('add-dir').value.trim() || 'catalog';
+  if (!magnet) { showBanner('Please enter a magnet link', false); return; }
+  showBanner('Starting download — this may take several minutes…', true);
+  try {
+    const res = await fetch('/torrent/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({magnet, title, save_dir: dir})
+    });
+    const data = await res.json();
+    if (!res.ok) { showBanner(data.detail || 'Error', false); return; }
+    if (data.status === 'downloaded') {
+      document.getElementById('add-result').style.display = 'block';
+      document.getElementById('add-result').textContent = '✓ Downloaded to: ' + data.file_path;
+      showBanner('✓ Download complete and seeding started', true);
+      loadStatus();
+    } else {
+      showBanner(data.message || 'Acknowledged', true);
+    }
+  } catch(e) { showBanner('Network error: ' + e.message, false); }
+}
+
+async function removeTorrent(infoHash) {
+  if (!confirm('Remove this torrent from the session?')) return;
+  const res = await fetch('/torrent/' + encodeURIComponent(infoHash), {method: 'DELETE'});
+  if (res.ok) { showBanner('Torrent removed', true); loadStatus(); }
+  else { const d = await res.json(); showBanner(d.detail || 'Error', false); }
+}
+
+function copyText(id) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent)
+    .then(() => showBanner('Copied to clipboard', true));
+}
+
+function copyFull(id, magnet) {
+  navigator.clipboard.writeText(magnet)
+    .then(() => showBanner('Magnet link copied', true));
+}
+
+function showBanner(msg, ok) {
+  const el = document.getElementById('status-banner');
+  el.className = ok ? 'msg-ok' : 'msg-err';
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+// Auto-refresh every 30 seconds
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

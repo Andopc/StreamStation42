@@ -1,0 +1,16 @@
+moviepy>=2.1.1
+python-mpv-jsonipc
+pyserial
+rich
+textual
+ffmpeg-python
+fastapi
+uvicorn
+glfw
+PyOpenGL
+PySide6>=6.8
+jsonschema
+requests
+mutagen
+# Optional: install for full P2P BitTorrent seeding/downloading support
+# python-libtorrent

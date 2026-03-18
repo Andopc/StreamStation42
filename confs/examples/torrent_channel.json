@@ -1,0 +1,36 @@
+{
+  "station_conf": {
+    "network_name": "Indie P2P Channel",
+    "network_type": "torrent",
+    "channel_number": 10,
+    "network_long_name": "Indie P2P Underground TV",
+
+    "torrent_dir": "catalog/indie_p2p",
+
+    "torrent_streams": [
+      {
+        "title": "My Indie Show - S01E01 - Pilot",
+        "description": "The very first episode of our community-made series.",
+        "duration": 1800,
+        "magnet": "magnet:?xt=urn:btih:REPLACE_WITH_YOUR_INFO_HASH&dn=indie_show_s01e01.av1",
+        "file_path": "catalog/indie_p2p/indie_show_s01e01.av1"
+      },
+      {
+        "title": "My Indie Show - S01E02 - The Journey",
+        "description": "Episode 2 of the series.",
+        "duration": 1800,
+        "magnet": "magnet:?xt=urn:btih:REPLACE_WITH_YOUR_INFO_HASH&dn=indie_show_s01e02.av1",
+        "file_path": "catalog/indie_p2p/indie_show_s01e02.av1"
+      },
+      {
+        "title": "Community Short Film",
+        "description": "A short film made by community members.",
+        "duration": 900,
+        "magnet": "magnet:?xt=urn:btih:REPLACE_WITH_YOUR_INFO_HASH&dn=community_short.av1",
+        "file_path": "catalog/indie_p2p/community_short.av1"
+      }
+    ],
+
+    "hidden": false
+  }
+}
